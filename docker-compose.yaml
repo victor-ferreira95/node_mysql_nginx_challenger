@@ -1,0 +1,60 @@
+version: '3'
+
+services:
+  app:
+    build:
+      context: ./node
+      dockerfile: dockerfile
+    # comando que susbstitui o entrypoint e espera ate que o db inicialize para rodar on app
+    entrypoint: dockerize --wait tcp://db:3306 --timeout 20s docker-entrypoint.sh
+    command: npm run dev
+    networks:
+      - node-network
+    volumes:
+      - ./node:/usr/src/app
+      - /usr/src/app/node_modules
+    container_name: app
+    # ports:
+    #   - "3000:3000"
+    # tty: true
+    # o container app depende do container db, sobe primeiro o db e apos o app
+    depends_on:
+      - db
+
+  db:
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
+    container_name: db
+    # grante que quando o container cair, haja o restart automatico
+    restart: always
+    # abre o modo iterativoå
+    tty: true
+    volumes:
+      - ./mysql:/var/lib/mysql
+    # variaveis de ambiente
+    environment:
+      - MYSQL_ROOT_PASSWORD=mysecretdb
+      - MYSQL_DATABASE=nodedb
+    networks:
+      - node-network
+
+  web:
+    build:
+      context: ./nginx
+      dockerfile: dockerfile
+    image: victorferreira95/nginx
+    container_name: nginx
+    # comando que susbstitui o entrypoint e espera ate que o db inicialize para rodar on app
+    entrypoint: dockerize --wait tcp://app:3000 --timeout 20s nginx -g "daemon off;"
+    networks:
+        - node-network
+        #   porta ao qual o comtainer vai expor
+    ports:
+        - "8080:80"
+     # o container app depende do container db, sobe primeiro o db e apos o app
+    depends_on:
+      - app
+
+networks:
+  node-network:
+    driver: bridge
